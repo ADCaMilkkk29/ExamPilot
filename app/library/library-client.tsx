@@ -67,7 +67,7 @@ function DetailDialog({ doc, onClose }: { doc: DocDetail; onClose: () => void })
 export default function LibraryClient({ docs, keywords, q, keyword }: LibraryProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [activity, setActivity] = useState<"upload" | "view" | "delete" | null>(null);
+  const [activity, setActivity] = useState<"upload" | "view" | "delete" | "mark" | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [detail, setDetail] = useState<DocDetail | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
@@ -140,6 +140,24 @@ export default function LibraryClient({ docs, keywords, q, keyword }: LibraryPro
     }
   }
 
+  async function mark(doc: DocSummary) {
+    const pastPaper = !doc.keywords.includes("往年试卷");
+    setActivity("mark");
+    setFeedback(null);
+    try {
+      const response = await fetch(`/api/docs/${doc.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pastPaper }),
+      });
+      await readResponse(response, "标记更新失败，请重试。");
+      setFeedback({ kind: "success", text: pastPaper ? "已标为往年试卷。" : "已取消往年试卷标记。" });
+      startTransition(() => router.refresh());
+    } catch (error) {
+      setFeedback({ kind: "error", text: error instanceof Error ? error.message : "标记更新失败，请重试。" });
+    } finally {
+      setActivity(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <form className={`${panel} flex flex-wrap items-end gap-3 p-4 sm:p-5`} onSubmit={upload}>
@@ -168,6 +186,7 @@ export default function LibraryClient({ docs, keywords, q, keyword }: LibraryPro
           </p>
         )}
         {activity === "view" && <p className="text-sm">正在打开资料…</p>}
+        {activity === "mark" && <p className="text-sm">正在更新标记…</p>}
         {pending && !feedback && <p className="text-sm">正在加载资料列表…</p>}
       </div>
 
@@ -245,6 +264,9 @@ export default function LibraryClient({ docs, keywords, q, keyword }: LibraryPro
                 ) : (
                   <div className="flex flex-wrap justify-between gap-2">
                     <button className={secondary} disabled={busy} onClick={() => view(doc)} type="button">查看原文</button>
+                    <button className={secondary} disabled={busy} onClick={() => mark(doc)} type="button">
+                      {doc.keywords.includes("往年试卷") ? "取消往年试卷标记" : "标为往年试卷"}
+                    </button>
                     <button className={danger} disabled={busy} onClick={() => setConfirmId(doc.id)} type="button">删除资料</button>
                   </div>
                 )}

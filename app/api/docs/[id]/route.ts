@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stmt } from "@/lib/db";
-import { getDocument } from "@/lib/docs";
+import { getDocument, markPastPaper } from "@/lib/docs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,5 +32,17 @@ export function DELETE(_req: NextRequest, { params }: DocRoute) {
   if (id === undefined) return invalidId();
   return stmt.deleteDoc.run(id).changes
     ? NextResponse.json({ deleted: true })
+    : notFound();
+}
+
+export async function PATCH(req: NextRequest, { params }: DocRoute) {
+  const id = parseId(params.id);
+  if (id === undefined) return invalidId();
+  const body = await req.json().catch(() => null);
+  if (typeof body?.pastPaper !== "boolean") {
+    return NextResponse.json({ error: "请指定是否标为往年试卷。" }, { status: 400 });
+  }
+  return markPastPaper(id, body.pastPaper)
+    ? NextResponse.json({ pastPaper: body.pastPaper })
     : notFound();
 }

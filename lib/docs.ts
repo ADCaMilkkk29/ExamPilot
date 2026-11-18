@@ -1,6 +1,8 @@
 import "server-only";
 
-import { db } from "@/lib/db";
+import { db, stmt } from "@/lib/db";
+
+export const pastPaperTag = "往年试卷";
 
 export type DocSummary = {
   id: number;
@@ -63,4 +65,17 @@ export const listDocuments = db.transaction((keyword = "", q = "") => ({
 export const getDocument = db.transaction((id: number): DocDetail | undefined => {
   const doc = findDoc.get(id);
   if (doc) return { ...withKeywords(doc), chunks: findChunks.all(id) };
+});
+
+const unlinkKeyword = db.prepare("DELETE FROM doc_keywords WHERE doc_id = ? AND keyword_id = ?");
+
+export const markPastPaper = db.transaction((docId: number, marked: boolean) => {
+  if (!findDoc.get(docId)) return false;
+  if (marked) stmt.insertKeyword.run(pastPaperTag);
+  const keyword = stmt.getKeyword.get(pastPaperTag) as { id: number } | undefined;
+  if (keyword) {
+    if (marked) stmt.linkDocKeyword.run(docId, keyword.id);
+    else unlinkKeyword.run(docId, keyword.id);
+  }
+  return true;
 });
