@@ -8,6 +8,7 @@ export default function Home() {
         <Link className="underline" href="/library">进入资料库</Link>
         <Link className="underline" href="/exam/create">智能组卷</Link>
         <Link className="underline" href="/review">考试重点</Link>
+        <Link className="underline" href="/mistakes">错题本</Link>
       </nav>
     </main>
   );

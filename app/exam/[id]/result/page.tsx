@@ -22,6 +22,7 @@ export default function ResultPage({ params, searchParams }: {
       <div className="mx-auto max-w-4xl space-y-5 px-4 py-8 sm:px-8">
         <nav className="flex gap-4 text-sm font-semibold text-indigo-700 underline dark:text-indigo-300">
           <Link href={`/exam/${examId}`}>返回试卷</Link>
+          <Link href="/mistakes">查看错题本</Link>
         </nav>
         <header className="rounded-2xl border border-indigo-100 bg-indigo-50 p-6 dark:border-indigo-900 dark:bg-indigo-950">
           <h1 className="text-2xl font-bold">成绩报告</h1>

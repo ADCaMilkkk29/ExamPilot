@@ -54,6 +54,11 @@ CREATE TABLE IF NOT EXISTS mistakes (
   question_json TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS mistake_practices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  mistake_id INTEGER NOT NULL REFERENCES mistakes(id) ON DELETE CASCADE,
+  question_json TEXT NOT NULL
+);
 `);
 
 // 极简 prepared-statement 增删查
