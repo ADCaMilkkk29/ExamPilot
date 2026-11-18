@@ -7,6 +7,17 @@ type OutputSchema<T> = {
 
 const requestTimeout = 8_000;
 
+class InvalidModelOutput extends Error {}
+
+export function modelFailure(error: unknown) {
+  if (error instanceof InvalidModelOutput) return { status: 502, error: "模型返回了无效结果，请重试。" };
+  if (error instanceof OpenAI.APIConnectionTimeoutError || error instanceof OpenAI.APIUserAbortError ||
+      (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name))) {
+    return { status: 504, error: "模型响应超时，请重试。" };
+  }
+  return { status: 502, error: "暂时无法调用模型，请重试。" };
+}
+
 function createClient(timeout = requestTimeout) {
   const apiKey = process.env.LLM_API_KEY?.trim();
   if (!apiKey) throw new Error("LLM_API_KEY is not configured");
@@ -55,7 +66,7 @@ export async function chatJSON<T>(prompt: string, schema: OutputSchema<T>, timeo
       // Invalid JSON or a rejected value gets one more attempt.
     }
   }
-  throw new Error("Model response did not match the JSON schema");
+  throw new InvalidModelOutput("Model response did not match the JSON schema");
 }
 
 export async function embedTexts(texts: string[], signal?: AbortSignal): Promise<number[][]> {

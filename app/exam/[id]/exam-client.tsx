@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import type { ExamView } from "@/lib/exam";
 
 type Question = Pick<ExamView["questions"][number], "type" | "score"> & {
@@ -17,11 +18,14 @@ function displayTime(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export default function ExamClient({ durationMinutes, questions }: {
-  durationMinutes: number; questions: Question[];
+export default function ExamClient({ examId, durationMinutes, questions }: {
+  examId: number; durationMinutes: number; questions: Question[];
 }) {
+  const router = useRouter();
   const [seconds, setSeconds] = useState(durationMinutes * 60);
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const deadline = Date.now() + durationMinutes * 60_000;
@@ -38,6 +42,28 @@ export default function ExamClient({ durationMinutes, questions }: {
 
   function recordAnswer(index: number, value: string) {
     setAnswers((previous) => ({ ...previous, [index]: value }));
+  }
+
+  async function submit() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/grade", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ examId, answers: questions.map((_, index) => answers[index] ?? "") }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !Number.isSafeInteger(result?.resultId)) {
+        setError(result?.error ?? "交卷失败，你的答案仍在，请重试。");
+        setSubmitting(false);
+        return;
+      }
+      router.push(`/exam/${examId}/result?resultId=${result.resultId}`);
+    } catch {
+      setError("交卷失败，你的答案仍在，请重试。");
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -83,7 +109,7 @@ export default function ExamClient({ durationMinutes, questions }: {
           return (
             <fieldset
               className={`${panel} min-w-0 scroll-mt-5 px-4 pb-5 pt-2 sm:px-6`}
-              disabled={expired}
+              disabled={expired || submitting}
               id={questionId}
               key={questionId}
               tabIndex={-1}
@@ -138,7 +164,11 @@ export default function ExamClient({ durationMinutes, questions }: {
           );
         })}
         <div className="flex flex-wrap items-center gap-3">
-          <button className="rounded-lg bg-slate-200 px-4 py-2 text-slate-600" disabled type="button">提交试卷</button>
+          <button className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800 disabled:opacity-60"
+            disabled={submitting} onClick={submit} type="button">
+            {submitting ? "正在判分…" : "提交试卷"}
+          </button>
+          {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
         </div>
       </div>
     </div>

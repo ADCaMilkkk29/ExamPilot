@@ -193,3 +193,13 @@ export function getExamView(id: number): ExamView | undefined {
     return;
   }
 }
+
+export function getExamPaper(id: number): ExamPaper | undefined {
+  const row = stmt.getExam.get(id) as { paper_json: string } | undefined;
+  if (!row) return;
+  try {
+    return parsePaper(JSON.parse(row.paper_json));
+  } catch {
+    return;
+  }
+}

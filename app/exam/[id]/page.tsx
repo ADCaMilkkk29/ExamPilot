@@ -37,7 +37,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
             {questions.length} 道题 <span aria-hidden="true">·</span> {exam.durationMinutes} 分钟
           </p>
         </header>
-        <ExamClient key={exam.id} durationMinutes={exam.durationMinutes} questions={questions} />
+        <ExamClient key={exam.id} examId={exam.id} durationMinutes={exam.durationMinutes} questions={questions} />
       </div>
     </main>
   );
