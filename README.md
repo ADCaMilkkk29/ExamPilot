@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ExamPilot 智学库
 
-## Getting Started
+ExamPilot 是一个本地运行的复习和出题工具。上传课程资料后，可以按关键词检索、组卷、限时作答、查看成绩和错题，也可以生成带原文出处和考频的复习重点。
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```text
+浏览器
+  |
+  v
+Next.js App Router ----> 资料库 · 考试 · 成绩 · 错题 · 重点
+  |
+  +--> 上传解析 / 检索 / 判分 ----> SQLite (data/app.db)
+  |
+  +--> OpenAI 兼容 API (可选) ----> 关键词 / 向量 / 组卷 / 主观判分 / 重点
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 约 10 分钟复现
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+准备 Git、Node.js 22 或 24 和 npm。首次安装需要网络。锁定的 `better-sqlite3` 包随附 Windows、macOS 和 Linux 的常见 x64、ARM64 平台所需的原生模块。下面的安装命令直接使用随包的原生模块。在其他平台上需要自行准备兼容的 SQLite 原生构建。应用启动后会按需创建 `data/app.db`。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```sh
+git clone https://github.com/ADCaMilkkk29/ExamPilot.git
+cd ExamPilot
+cp .env.example .env.local
+npm ci --ignore-scripts
+npm run dev
+```
 
-## Learn More
+在 PowerShell 中，用 `Copy-Item .env.example .env.local` 复制配置。打开 [http://localhost:3000](http://localhost:3000)。需要验证生产构建时，可以运行 `npm run build`，再运行 `npm start`。
 
-To learn more about Next.js, take a look at the following resources:
+1. 保持 `.env.local` 的 `LLM_API_KEY` 为空。在资料库上传 [高数讲义](examples/calculus-notes.md) 和 [练习卷](examples/practice-paper.txt)。
+2. 把练习卷标为「往年试卷」。打开「智能组卷」，输入「帮我出份高数期中卷」，生成并进入标为「示例试卷」的两道客观题。
+3. 第一题选择 1，第二题填写 12，提交后可查看 10/10 分的报告。故意答错一道，提交后可从报告进入错题本。
+4. 打开「考试重点」，生成后查看「示例重点」。标记练习卷后，「极限」在卷中出现 3 次，会显示「高频🔥」。只有资料中存在匹配分块时才提供来源链接。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 模型配置和降级
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+需要真实模型时，在 `.env.local` 填写 `LLM_API_KEY`，按服务商配置 `LLM_BASE_URL`、`LLM_MODEL` 和 `EMBEDDING_MODEL`，再重启进程。文件存储与客观题判分使用本地 SQLite。开启模型后，相关文本、题目及主观题作答会按所用功能发送给配置的模型服务。
 
-## Deploy on Vercel
+| 场景 | 实际行为 |
+| --- | --- |
+| 上传时无密钥、超时或回复无效 | 先保存原文和分块，标签与向量各自尝试写入，检索可降级为文字匹配 |
+| 组卷或重点缺少模型、缺少资料或模型请求失败 | 返回有明确标识的内置示例。示例卷可离线判分 |
+| 主观题判分失败 | 保留作答，提示原因，可重试。成功后才保存成绩及错题 |
+| 变形题生成失败 | 错题本、解析和已有练习仍可使用，配置模型后可重试 |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 三条实际 Prompt 链
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+所有链路都用 `chatJSON` 请求结构化结果并在服务端校验。回复无法解析或未通过校验时重试一次。
+
+| 链路 | Prompt 输入与约束 | 校验和输出 |
+| --- | --- | --- |
+| [组卷](lib/exam.ts) | 学习者要求加检索到的资料分块。每题须由引用分块支持，答案和解析写入各自字段 | 校验题型、选择题选项、正分值及来源 ID，将试卷存入 SQLite |
+| [主观判分](lib/grade.ts) | 题干、参考答案、解析和考生作答。按关键推理和结论给分，接受等价解法 | 校验分数范围和评语，写入成绩，按得分记录错题 |
+| [考试重点](lib/review.ts) | 所选资料或全库的分块。输出名称、星级、提要和来源 | 核对星级与分块，按往年试卷原文统计考点出现次数 |
