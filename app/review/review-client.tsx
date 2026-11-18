@@ -8,6 +8,7 @@ const panel = "rounded-2xl border border-slate-200 bg-white p-5 dark:border-slat
 
 export default function ReviewClient({ documents }: { documents: { id: number; filename: string }[] }) {
   const [points, setPoints] = useState<ReviewPoint[]>([]);
+  const [example, setExample] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -17,6 +18,7 @@ export default function ReviewClient({ documents }: { documents: { id: number; f
     const docIds = new FormData(event.currentTarget).getAll("documents").map(Number);
     setError("");
     setPoints([]);
+    setExample(null);
     setPending(true);
     try {
       const response = await fetch("/api/review", {
@@ -28,6 +30,7 @@ export default function ReviewClient({ documents }: { documents: { id: number; f
         return;
       }
       setPoints(result.points);
+      if (result.isExample) setExample(result.notice ?? "");
     } catch {
       setError("生成失败，请重试。");
     } finally {
@@ -50,13 +53,16 @@ export default function ReviewClient({ documents }: { documents: { id: number; f
             ))}
           </div>
           <button type="submit"
-            className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800 disabled:opacity-60" disabled={!documents.length}>
-            {pending ? "正在生成…" : "生成考试重点"}
+            className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800 disabled:opacity-60">
+            {pending ? "正在生成…" : documents.length ? "生成考试重点" : "查看示例重点"}
           </button>
         </fieldset>
       </form>
       {pending && <p role="status" className="text-sm">正在整理所选资料…</p>}
       {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+      {example !== null && <p role="status" className="rounded-lg bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <strong>示例重点</strong> {example}
+      </p>}
       {points.map((point, index) => (
         <article key={index} className={`${panel} space-y-3 [overflow-wrap:anywhere]`}>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">

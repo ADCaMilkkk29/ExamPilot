@@ -3,6 +3,7 @@ import "server-only";
 import { stmt } from "@/lib/db";
 import { chatJSON } from "@/lib/llm";
 import { retrieve, type RetrievedChunk } from "@/lib/rag";
+import { examplePaper } from "@/lib/fallback";
 
 const defaultDuration = 60;
 const generationTimeout = 25_000;
@@ -28,29 +29,6 @@ export type ExamView = {
   isExample: boolean;
   durationMinutes: number;
   questions: Pick<ExamQuestion, "type" | "stem" | "options" | "score">[];
-};
-
-const examplePaper: ExamPaper = {
-  title: "高等数学示例试卷",
-  questions: [
-    {
-      type: "choice",
-      stem: "计算极限 $\\lim_{x\\to 0}\\frac{\\sin x}{x}$。",
-      options: ["$0$", "$1$", "$2$", "不存在"],
-      answer: "$1$",
-      analysis: "这是标准的三角函数极限，结果为 $1$。",
-      score: 5,
-      source_doc_id: null,
-    },
-    {
-      type: "blank",
-      stem: "函数 $f(x)=x^3$ 在 $x=2$ 处的导数是多少？",
-      answer: "12",
-      analysis: "由幂函数求导得 $f'(x)=3x^2$，代入 $x=2$。",
-      score: 5,
-      source_doc_id: null,
-    },
-  ],
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {

@@ -2,10 +2,13 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { pastPaperTag } from "@/lib/docs";
+import { exampleReview } from "@/lib/fallback";
 import { chatJSON, modelFailure } from "@/lib/llm";
 
 type Point = { name: string; stars: number; summary: string; doc_id: number; chunk_seq: number };
-export type ReviewPoint = Point & { filename: string; frequency: number };
+export type ReviewPoint = Omit<Point, "doc_id" | "chunk_seq"> & {
+  doc_id: number | null; chunk_seq: number | null; filename: string | null; frequency: number;
+};
 type Source = Pick<Point, "doc_id" | "chunk_seq"> & { text: string; filename: string };
 
 const listSources = db.prepare<{ ids: string }, Source>(`
@@ -20,6 +23,7 @@ const listPastPapers = db.prepare<[string], string>(`
   JOIN keywords k ON k.id = dk.keyword_id
   WHERE k.name = ?
 `).pluck();
+const sourceExists = db.prepare<[number, number]>("SELECT 1 FROM chunks WHERE doc_id = ? AND seq = ?").pluck();
 
 function occurrences(text: string, term: string) {
   let count = 0;
@@ -72,8 +76,26 @@ function reviewBatch(sources: Source[]) {
 
 export async function reviewDocuments(docIds: number[]) {
   const sources = listSources.all({ ids: JSON.stringify(docIds) });
-  if (!sources.length) return { status: 422, error: "所选范围没有可用分块，请先上传资料。" };
-  if (!process.env.LLM_API_KEY?.trim()) return { status: 503, error: "生成考试重点需要配置模型密钥。" };
+  function present(points: Omit<Point, "doc_id" | "chunk_seq">[], references: (Source | undefined)[], isExample: boolean, notice?: string) {
+    const papers = listPastPapers.all(pastPaperTag);
+    return {
+      status: 200, isExample, notice,
+      points: points.map(({ name, stars, summary }, index): ReviewPoint => {
+        const reference = references[index];
+        const live = reference && sourceExists.get(reference.doc_id, reference.chunk_seq) ? reference : undefined;
+        return {
+          name, stars, summary, doc_id: live?.doc_id ?? null,
+          chunk_seq: live?.chunk_seq ?? null, filename: live?.filename ?? null,
+          frequency: papers.reduce((sum, text) => sum + occurrences(text, name), 0),
+        };
+      }),
+    };
+  }
+  function example(notice: string) {
+    return present(exampleReview, exampleReview.map(({ name }) => sources.find(({ text }) => text.includes(name))), true, notice);
+  }
+  if (!sources.length) return example("所选范围暂无可用资料。");
+  if (!process.env.LLM_API_KEY?.trim()) return example("当前未配置模型密钥。");
 
   const points = new Map<string, Point>();
   const batchSize = 32;
@@ -84,15 +106,10 @@ export async function reviewDocuments(docIds: number[]) {
       }
     }
   } catch (error) {
-    return modelFailure(error);
+    return example(modelFailure(error).error);
   }
-  const papers = listPastPapers.all(pastPaperTag);
-  return {
-    status: 200,
-    points: Array.from(points.values(), (point): ReviewPoint => ({
-      ...point,
-      filename: sources.find(({ doc_id }) => doc_id === point.doc_id)!.filename,
-      frequency: papers.reduce((sum, text) => sum + occurrences(text, point.name), 0),
-    })),
-  };
+  const outline = Array.from(points.values());
+  return present(outline, outline.map((point) => sources.find(
+    ({ doc_id, chunk_seq }) => doc_id === point.doc_id && chunk_seq === point.chunk_seq,
+  )), false);
 }
