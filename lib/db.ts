@@ -64,6 +64,7 @@ export const stmt = {
   deleteDoc: db.prepare("DELETE FROM documents WHERE id = ?"),
   insertChunk: db.prepare("INSERT INTO chunks (doc_id, seq, text, embedding) VALUES (?, ?, ?, ?)"),
   getChunks: db.prepare("SELECT * FROM chunks WHERE doc_id = ? ORDER BY seq"),
+  updateChunkEmbedding: db.prepare("UPDATE chunks SET embedding = ? WHERE id = ?"),
   insertKeyword: db.prepare("INSERT OR IGNORE INTO keywords (name) VALUES (?)"),
   getKeyword: db.prepare("SELECT * FROM keywords WHERE name = ?"),
   linkDocKeyword: db.prepare("INSERT OR IGNORE INTO doc_keywords (doc_id, keyword_id) VALUES (?, ?)"),
